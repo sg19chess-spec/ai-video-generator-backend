@@ -90,7 +90,7 @@ async function enhanceImageWithNanoBanana(imageBuffer, imageName, mimetype) {
     
     const prompt = [
       { 
-        text: "Transform this image into a high-quality professional model photo. Enhance the lighting, improve clarity, boost colors, and make it look like a professional product photograph. Maintain the original subject and composition but elevate the overall quality to look polished and professional."
+        text: "Transform this raw clothing image into a high-quality studio-grade fashion photo. Keep the clothing design, texture, and color accurate. Place the item on an appropriate model with natural body proportions and realistic fabric fit. Use professional studio lighting and a pure white background. The result should look like an authentic e-commerce catalog image — clean, sharp, and ready for product listing."
       },
       {
         inlineData: {
