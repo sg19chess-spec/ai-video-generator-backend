@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import fetch from 'node-fetch';
 import { v4 as uuidv4 } from 'uuid';
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -77,50 +78,53 @@ function sendSSE(res, data) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-// Nano Banana API - Image Enhancement (Gemini 2.5 Flash)
-async function enhanceImageWithNanoBanana(imageBuffer, imageName) {
+// Nano Banana API - Image Enhancement using Gemini 2.5 Flash Image
+async function enhanceImageWithNanoBanana(imageBuffer, imageName, mimetype) {
   try {
+    console.log(`Enhancing ${imageName} with Gemini Nano Banana...`);
+    
+    const ai = new GoogleGenAI({ apiKey: process.env.NANO_BANANA_KEY });
+    
     const base64Image = imageBuffer.toString('base64');
+    const mimeType = mimetype || 'image/jpeg';
     
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.NANO_BANANA_KEY}`,
+    const prompt = [
+      { 
+        text: "Transform this image into a high-quality professional model photo. Enhance the lighting, improve clarity, boost colors, and make it look like a professional product photograph. Maintain the original subject and composition but elevate the overall quality to look polished and professional."
+      },
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: "Enhance this image by improving quality, lighting, and clarity. Return the enhanced version." },
-              {
-                inline_data: {
-                  mime_type: "image/jpeg",
-                  data: base64Image
-                }
-              }
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.4,
-            topK: 32,
-            topP: 1,
-            maxOutputTokens: 4096,
-          }
-        })
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Image,
+        },
+      },
+    ];
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-image",
+      contents: prompt,
+    });
+
+    // Extract the enhanced image from response
+    if (response.candidates && response.candidates[0] && response.candidates[0].content && response.candidates[0].content.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          const enhancedImageData = part.inlineData.data;
+          const enhancedBuffer = Buffer.from(enhancedImageData, "base64");
+          console.log(`✅ Successfully enhanced ${imageName} with Gemini`);
+          return enhancedBuffer;
+        }
       }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Nano Banana API error: ${response.status}`);
     }
-
-    const data = await response.json();
     
-    // For this mock implementation, return original buffer
-    // In production, extract enhanced image from API response
+    // If no image in response, return original
+    console.warn(`⚠️ No enhanced image returned for ${imageName}, using original`);
     return imageBuffer;
+    
   } catch (error) {
-    console.error('Nano Banana enhancement error:', error);
-    throw error;
+    console.error(`❌ Nano Banana enhancement error for ${imageName}:`, error.message);
+    // Return original buffer on error to continue the process
+    return imageBuffer;
   }
 }
 
@@ -223,11 +227,14 @@ app.post('/api/generate-video', upload.fields([
 
     const enhancedFront = await enhanceImageWithNanoBanana(
       frontImage.buffer,
-      'front'
+      'front',
+      frontImage.mimetype
     );
+    
     const enhancedBack = await enhanceImageWithNanoBanana(
       backImage.buffer,
-      'back'
+      'back',
+      backImage.mimetype
     );
 
     const enhancedFrontFilename = generateFilename('enhanced-front', frontExt);
